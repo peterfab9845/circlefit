@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <png.h>
 
 typedef struct {
@@ -73,7 +74,7 @@ void fill_circle_octant_points(int cx, int cy, int x, int y, color c) {
 
 // Bresenham Circle Drawing Algorithm
 // https://funloop.org/post/2021-03-15-bresenham-circle-drawing-algorithm.html
-void draw_circle(int fill, circle cir, color col) {
+void draw_circle(bool fill, circle cir, color col) {
     // Calculation coordinates are based on (0, 0) at center, math polarity.
     // Start in standard position.
     int x = cir.r;
@@ -116,20 +117,20 @@ void draw_circle(int fill, circle cir, color col) {
     }
 }
 
-void read_image(void) {
-    orig.version = PNG_IMAGE_VERSION;
-    orig.opaque = NULL;
+void read_image(png_image *image, pixel **buf) {
+    image->version = PNG_IMAGE_VERSION;
+    image->opaque = NULL;
 
-    png_image_begin_read_from_stdio(&orig, stdin);
+    png_image_begin_read_from_stdio(image, stdin);
 
-    orig.format = PNG_FORMAT_RGB;
+    image->format = PNG_FORMAT_RGB;
 
-    origbuf = malloc(PNG_IMAGE_SIZE(orig));
-    png_image_finish_read(&orig, NULL, origbuf, 0, NULL);
+    *buf = malloc(PNG_IMAGE_SIZE(*image));
+    png_image_finish_read(image, NULL, *buf, 0, NULL);
 }
 
-int main(int argc, char *argv[]) {
-    read_image();
+int main(void) {
+    read_image(&orig, &origbuf);
     outbuf = calloc(orig.width * orig.height, sizeof(pixel));
 
     /*
@@ -154,15 +155,17 @@ int main(int argc, char *argv[]) {
     col.g = 0x00;
     col.b = 0x00;
 
-    draw_circle(1, cir, col);
+    draw_circle(true, cir, col);
 
     col.g = 0xff;
-    draw_circle(0, cir, col);
+    draw_circle(false, cir, col);
 
     fwrite(outbuf, sizeof(pixel), orig.width * orig.height, stdout);
 
     free(origbuf);
     png_image_free(&orig);
     free(outbuf);
+
+    return 0;
 }
 

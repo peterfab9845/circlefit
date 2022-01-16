@@ -1,5 +1,5 @@
 CC=clang
-CFLAGS=-lpng -g -fsanitize=address
+CFLAGS=-Wall -Wextra -pedantic -lpng -g -fsanitize=address
 NAME=circlefit
 
 .PHONY: all
@@ -10,7 +10,7 @@ $(NAME): $(NAME).c
 
 .PHONY: clean
 clean:
-	rm $(NAME)
+	rm -f $(NAME)
 
 .PHONY: run
 run: $(NAME)
