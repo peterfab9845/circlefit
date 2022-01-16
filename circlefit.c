@@ -35,16 +35,12 @@ void putpixel(int x, int y, color c) {
     outbuf[y*pitch + x] = c;
 }
 
-void read_image(void) {
-    orig.version = PNG_IMAGE_VERSION;
-    orig.opaque = NULL;
-
-    png_image_begin_read_from_stdio(&orig, stdin);
-
-    orig.format = PNG_FORMAT_RGB;
-
-    origbuf = malloc(PNG_IMAGE_SIZE(orig));
-    png_image_finish_read(&orig, NULL, origbuf, 0, NULL);
+void xline(int xa, int xb, int y, color c) {
+    if (xa > xb)
+        return;
+    for (int i = xa; i <= xb; i++) {
+        putpixel(i, y, c);
+    }
 }
 
 // draw points in all 8 symmetric octants of a circle
@@ -63,9 +59,22 @@ void draw_circle_octant_points(int cx, int cy, int x, int y, color c) {
     }
 }
 
+// fill a circle using octants
+void fill_circle_octant_points(int cx, int cy, int x, int y, color c) {
+    // quadrants of circle
+    xline(cx - x, cx + x, cy + y, c);
+    xline(cx - x, cx + x, cy - y, c);
+    if (x != y) {
+        // also do octants by swapping x and y
+        xline(cx - y, cx + y, cy + x, c);
+        xline(cx - y, cx + y, cy - x, c);
+    }
+
+}
+
 // Bresenham Circle Drawing Algorithm
 // https://funloop.org/post/2021-03-15-bresenham-circle-drawing-algorithm.html
-void draw_circle(circle cir, color col) {
+void draw_circle(int fill, circle cir, color col) {
     // Calculation coordinates are based on (0, 0) at center, math polarity.
     // Start in standard position.
     int x = cir.r;
@@ -78,7 +87,10 @@ void draw_circle(circle cir, color col) {
     int dNW = 5 - (2 * cir.r);
 
     // first point
-    draw_circle_octant_points(cir.x, cir.y, x, y, col);
+    if (fill)
+        fill_circle_octant_points(cir.x, cir.y, x, y, col);
+    else
+        draw_circle_octant_points(cir.x, cir.y, x, y, col);
 
     while (x > y) {
         if (F < 0) {
@@ -98,8 +110,23 @@ void draw_circle(circle cir, color col) {
             dNW += 4;
         }
         y++;
-        draw_circle_octant_points(cir.x, cir.y, x, y, col);
+        if (fill)
+            fill_circle_octant_points(cir.x, cir.y, x, y, col);
+        else
+            draw_circle_octant_points(cir.x, cir.y, x, y, col);
     }
+}
+
+void read_image(void) {
+    orig.version = PNG_IMAGE_VERSION;
+    orig.opaque = NULL;
+
+    png_image_begin_read_from_stdio(&orig, stdin);
+
+    orig.format = PNG_FORMAT_RGB;
+
+    origbuf = malloc(PNG_IMAGE_SIZE(orig));
+    png_image_finish_read(&orig, NULL, origbuf, 0, NULL);
 }
 
 int main(int argc, char *argv[]) {
@@ -125,10 +152,13 @@ int main(int argc, char *argv[]) {
 
     color col;
     col.r = 0xff;
-    col.g = 0xff;
-    col.b = 0xff;
+    col.g = 0x00;
+    col.b = 0x00;
 
-    draw_circle(cir, col);
+    draw_circle(1, cir, col);
+
+    col.g = 0xff;
+    draw_circle(0, cir, col);
 
     fwrite(outbuf, sizeof(pixel), orig.width * orig.height, stdout);
 
