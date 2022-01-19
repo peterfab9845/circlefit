@@ -4,11 +4,13 @@ OPTFLAGS=-O3
 DEBUGFLAGS=-g -fsanitize=address
 NAME=circlefit
 
+CFLAGS += $(OPTFLAGS)
+
 .PHONY: all
 all: $(NAME)
 
 $(NAME): $(NAME).c
-	$(CC) -o $@ $< $(CFLAGS) $(OPTFLAGS)
+	$(CC) -o $@ $< $(CFLAGS)
 
 .PHONY: clean
 clean:

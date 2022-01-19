@@ -186,9 +186,9 @@ int main(void) {
 
     int maxalive = 100;    // max number of live boxes at a time
     int maxcount = 65535; // max total number of boxes
-    int padding = 1;      // padding between boxes and on edges
+    int padding = 2;      // padding between boxes and on edges
     int growby = 1;       // amount to increase radius each iteration
-    int minradius = 2;    // minimum radius of a circle
+    int minradius = 5;    // minimum radius of a circle
     color edgecol = {0x30, 0x30, 0x30}; // border color of boxes
 
     read_image(&orig, &origbuf);
@@ -259,7 +259,6 @@ int main(void) {
     // draw boxes
     for (int i = 0; i < nboxes; i++) {
         box *b = &boxes[i];
-        //putpixel(b->x, b->y, (color){0xff, 0xff, 0x00});
         draw_box(b, getpixel(b->x, b->y), edgecol);
     }
 
