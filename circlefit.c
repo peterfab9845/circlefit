@@ -39,7 +39,8 @@ pixel *outbuf;
 
 color getpixel(int x, int y) {
     // bytes per memory row = components per row * bytes per component
-    int stride = PNG_IMAGE_ROW_STRIDE(orig) * PNG_IMAGE_PIXEL_COMPONENT_SIZE(orig.format);
+    int stride = PNG_IMAGE_ROW_STRIDE(orig) *
+        PNG_IMAGE_PIXEL_COMPONENT_SIZE(orig.format);
     // pixels per memory row = bytes per row / bytes per pixel
     int pitch = stride/PNG_IMAGE_PIXEL_SIZE(orig.format);
     return origbuf[y*pitch + x];
@@ -111,7 +112,8 @@ void draw_circle(bool fill, circle cir, color col) {
 
     while (x > y) {
         if (F <= 0) {
-            // Northwest would go too far inside the circle, go north instead. X remains the same.
+            // Northwest would go too far inside the circle, go north instead.
+            // X remains the same.
             // Update F: increases by dN
             F += dN;
             // Update dN and dNW
@@ -140,6 +142,7 @@ void draw_box(box *b, color fill, color edge) {
 }
 
 // Will these two circles collide if both grow by pad?
+// Based on XScreenSaver boxfit by jwz
 bool circles_collide(circle *a, circle *b, int pad) {
     // squared distance between circle centers
     int centers = SQUARE(b->x - a->x) + SQUARE(b->y - a->y);
@@ -149,6 +152,7 @@ bool circles_collide(circle *a, circle *b, int pad) {
 }
 
 // Will this box be legal if it grows by pad?
+// Based on XScreenSaver boxfit by jwz
 bool box_legal(box *a, int pad) {
     if (a->x - a->r - pad < 0 ||
         a->y - a->r - pad < 0 ||
@@ -167,6 +171,7 @@ bool box_legal(box *a, int pad) {
     return true;
 }
 
+// Read a PNG format image from stdin to buf
 void read_image(png_image *image, pixel **buf) {
     image->version = PNG_IMAGE_VERSION;
     image->opaque = NULL;
@@ -181,10 +186,8 @@ void read_image(png_image *image, pixel **buf) {
 
 int main(void) {
 
-    // TODO options
-    // count, border color, spacing, growby etc
-
-    int maxalive = 100;    // max number of live boxes at a time
+    // TODO make these command-line options
+    int maxalive = 100;   // max number of live boxes at a time
     int maxcount = 65535; // max total number of boxes
     int padding = 2;      // padding between boxes and on edges
     int growby = 1;       // amount to increase radius each iteration
@@ -196,6 +199,8 @@ int main(void) {
 
     srand(time(NULL));
 
+    // Circle generation algorithm
+    // Based on XScreenSaver boxfit by jwz
     boxes_size = 2 * maxalive;
     boxes = calloc(boxes_size, sizeof(*boxes));
     nboxes = 0;
