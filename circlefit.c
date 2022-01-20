@@ -5,15 +5,26 @@
 #include <errno.h>
 #include <time.h>
 #include <png.h>
+#include <libnsbmp.h>
+#include <sys/stat.h>
 
+#define BMP_BYTES_PER_PIXEL (4)
 #define SQUARE(x) ((x) * (x))
 
-typedef struct {
+typedef struct color_t {
     uint8_t r;
     uint8_t g;
     uint8_t b;
 } color;
 typedef color pixel;
+
+typedef struct {
+    union {
+        struct color_t; // MS extension
+        pixel pix3;
+    };
+    uint8_t a;
+} pixel4;
 
 typedef struct circle_t {
     int x;
@@ -29,26 +40,53 @@ typedef struct {
     bool alive;
 } box;
 
+typedef enum { PNG, BMP } image_format_t;
+image_format_t img_format;
+
 int boxes_size;
 int nboxes;
 box *boxes;
 
-png_image orig;
-pixel *origbuf;
+int img_width;
+int img_height;
+
+png_image orig_png;
+pixel *orig_png_buf;
+
+void *bmp_cb_create(int width, int height, unsigned int flags);
+void bmp_cb_destroy(void *bitmap);
+unsigned char *bmp_cb_get_buffer(void *bitmap);
+size_t bmp_cb_get_bpp(void *bitmap);
+
+bmp_image orig_bmp;
+bmp_bitmap_callback_vt bmp_callbacks = {
+    bmp_cb_create,
+    bmp_cb_destroy,
+    bmp_cb_get_buffer,
+    bmp_cb_get_bpp
+};
+
 pixel *outbuf;
 
 color getpixel(int x, int y) {
-    // bytes per memory row = components per row * bytes per component
-    int stride = PNG_IMAGE_ROW_STRIDE(orig) *
-        PNG_IMAGE_PIXEL_COMPONENT_SIZE(orig.format);
-    // pixels per memory row = bytes per row / bytes per pixel
-    int pitch = stride/PNG_IMAGE_PIXEL_SIZE(orig.format);
-    return origbuf[y*pitch + x];
+    if (img_format == PNG) {
+        // bytes per memory row = components per row * bytes per component
+        int stride = PNG_IMAGE_ROW_STRIDE(orig_png) *
+            PNG_IMAGE_PIXEL_COMPONENT_SIZE(orig_png.format);
+        // pixels per memory row = bytes per row / bytes per pixel
+        int pitch = stride/PNG_IMAGE_PIXEL_SIZE(orig_png.format);
+        return orig_png_buf[y*pitch + x];
+    } else if (img_format == BMP) {
+        // pixels per memory row = image width
+        int pitch = orig_bmp.width;
+        return ((pixel4 *)(orig_bmp.bitmap))[y*pitch + x].pix3;
+    }
+    return (color){0x00, 0x00, 0x00};
 }
 
 void putpixel(int x, int y, color c) {
     // for the output, pixels per memory row is known to be image width
-    int pitch = orig.width;
+    int pitch = img_width;
     outbuf[y*pitch + x] = c;
 }
 
@@ -156,8 +194,8 @@ bool circles_collide(circle *a, circle *b, int pad) {
 bool box_legal(box *a, int pad) {
     if (a->x - a->r - pad < 0 ||
         a->y - a->r - pad < 0 ||
-        (unsigned int)(a->x + a->r + pad) >= orig.width || // TODO an extra pad?
-        (unsigned int)(a->y + a->r + pad) >= orig.height   // ^
+        a->x + a->r + pad >= img_width ||
+        a->y + a->r + pad >= img_height
     ) {
         return false;
     }
@@ -171,8 +209,8 @@ bool box_legal(box *a, int pad) {
     return true;
 }
 
-// Read a PNG format image from stdin to buf
-void read_image(png_image *image, pixel **buf) {
+// Read a PNG format image from stdin into buf
+void read_png_stdio(png_image *image, pixel **buf) {
     image->version = PNG_IMAGE_VERSION;
     image->opaque = NULL;
 
@@ -184,6 +222,101 @@ void read_image(png_image *image, pixel **buf) {
     png_image_finish_read(image, NULL, *buf, 0, NULL);
 }
 
+// Read a PNG format image from path into buf
+void read_png_file(png_image *image, pixel **buf, char *path) {
+    image->version = PNG_IMAGE_VERSION;
+    image->opaque = NULL;
+
+    png_image_begin_read_from_file(image, path);
+
+    image->format = PNG_FORMAT_RGB;
+
+    *buf = malloc(PNG_IMAGE_SIZE(*image));
+    png_image_finish_read(image, NULL, *buf, 0, NULL);
+}
+
+// Write a PNG format image to stdout from buf
+void write_png_stdio(pixel **buf, int width, int height) {
+    // TODO
+}
+
+// Write a PNG format image to path from buf
+void write_png_file(pixel **buf, int width, int height, char *path) {
+    // TODO
+}
+
+// BMP reading callback functions
+// Based on libnsbmp decode_bmp example
+void *bmp_cb_create(int width, int height, unsigned int flags) {
+    // BMP_NEW and BMP_OPAQUE flags unused
+    if (flags & BMP_CLEAR_MEMORY) {
+        return calloc(width * height, BMP_BYTES_PER_PIXEL);
+    } else {
+        return malloc(width * height * BMP_BYTES_PER_PIXEL);
+    }
+}
+
+void bmp_cb_destroy(void *bitmap) {
+    free(bitmap);
+}
+
+unsigned char *bmp_cb_get_buffer(void *bitmap) {
+    return bitmap;
+}
+
+size_t bmp_cb_get_bpp(void *bitmap) {
+    (void) bitmap; // unused
+    return BMP_BYTES_PER_PIXEL;
+}
+
+// Read a file into newly allocated memory, setting size to its size
+void *read_file(char *path, size_t *size) {
+    FILE *fd = fopen(path, "rb");
+    if (!fd) {
+        fprintf(stderr, "Failed to open file %s\n", path);
+        exit(EXIT_FAILURE);
+    }
+
+    struct stat sb;
+    if (stat(path, &sb)) {
+        fprintf(stderr, "Failed to stat file %s\n", path);
+        exit(EXIT_FAILURE);
+    }
+    *size = sb.st_size;
+
+    void *buffer = malloc(*size);
+    if (!buffer) {
+        fprintf(stderr, "Failed to allocate %zu bytes\n", *size);
+        exit(EXIT_FAILURE);
+    }
+
+    size_t nread = fread(buffer, 1, *size, fd);
+    if (nread != *size) {
+        fprintf(stderr, "Unable to read %zu bytes, got %zu\n", *size, nread);
+        exit(EXIT_FAILURE);
+    }
+
+    fclose(fd);
+    return buffer;
+}
+
+// Read a BMP format image from path
+int read_bmp_file(bmp_image *image, bmp_bitmap_callback_vt *callbacks, void *file, size_t size) {
+    bmp_create(image, callbacks);
+
+    bmp_result result = bmp_analyse(image, size, file);
+    if (result != BMP_OK) {
+        return -1;
+    }
+
+    result = bmp_decode(image);
+    if (result != BMP_OK) {
+        return -1;
+    }
+
+    return 0;
+}
+
 int main(void) {
 
     // TODO make these command-line options
@@ -193,9 +326,24 @@ int main(void) {
     int growby = 1;       // amount to increase radius each iteration
     int minradius = 5;    // minimum radius of a circle
     color edgecol = {0x30, 0x30, 0x30}; // border color of boxes
+    img_format = BMP;
 
-    read_image(&orig, &origbuf);
-    outbuf = calloc(orig.width * orig.height, sizeof(pixel));
+    // TODO error checking
+    size_t bmp_size;
+    void *bmp_file;
+    if (img_format == PNG) {
+        read_png_stdio(&orig_png, &orig_png_buf);
+        //read_png_file(&orig_png, &orig_png_buf, "test.png");
+        img_width = orig_png.width;
+        img_height = orig_png.height;
+    } else if (img_format == BMP) {
+        bmp_file = read_file("test.bmp", &bmp_size);
+        read_bmp_file(&orig_bmp, &bmp_callbacks, bmp_file, bmp_size);
+        img_width = orig_bmp.width;
+        img_height = orig_bmp.height;
+    }
+
+    outbuf = calloc(img_width * img_height, sizeof(pixel));
 
     srand(time(NULL));
 
@@ -234,15 +382,15 @@ int main(void) {
                 if (!boxes) {
                     fprintf(stderr, "Failed to allocate memory for %d boxes\n",
                             boxes_size);
-                    exit(ENOMEM);
+                    exit(EXIT_FAILURE);
                 }
             }
 
             // try to add a new box 100 times
             box *b = &boxes[nboxes];
             for (int i = 0; i < 100; i++) {
-                b->x = padding + (rand() % (orig.width - 2*padding));
-                b->y = padding + (rand() % (orig.height - 2*padding));
+                b->x = padding + (rand() % (img_width - 2*padding));
+                b->y = padding + (rand() % (img_height - 2*padding));
                 b->r = minradius;
 
                 if (box_legal(b, padding)) {
@@ -267,11 +415,17 @@ int main(void) {
         draw_box(b, getpixel(b->x, b->y), edgecol);
     }
 
-    // TODO libpng output to file (optionally)
-    fwrite(outbuf, sizeof(pixel), orig.width * orig.height, stdout);
+    // TODO libpng output to file (optionally), with error checking
+    fwrite(outbuf, sizeof(pixel), img_width * img_height, stdout);
 
-    free(origbuf);
-    png_image_free(&orig);
+    if (img_format == PNG) {
+        png_image_free(&orig_png);
+        free(orig_png_buf);
+    } else if (img_format == BMP) {
+        bmp_finalise(&orig_bmp);
+        free(bmp_file);
+    }
+
     free(outbuf);
 
     return 0;
