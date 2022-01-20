@@ -214,12 +214,20 @@ void read_png_stdio(png_image *image, pixel **buf) {
     image->version = PNG_IMAGE_VERSION;
     image->opaque = NULL;
 
-    png_image_begin_read_from_stdio(image, stdin);
+    if (!png_image_begin_read_from_stdio(image, stdin)) {
+        // TODO
+    }
 
     image->format = PNG_FORMAT_RGB;
 
     *buf = malloc(PNG_IMAGE_SIZE(*image));
-    png_image_finish_read(image, NULL, *buf, 0, NULL);
+    if (!buf) {
+        // TODO
+    }
+
+    if (!png_image_finish_read(image, NULL, *buf, 0, NULL)) {
+        // TODO
+    }
 }
 
 // Read a PNG format image from path into buf
@@ -227,12 +235,20 @@ void read_png_file(png_image *image, pixel **buf, char *path) {
     image->version = PNG_IMAGE_VERSION;
     image->opaque = NULL;
 
-    png_image_begin_read_from_file(image, path);
+    if (!png_image_begin_read_from_file(image, path)) {
+        // TODO
+    }
 
     image->format = PNG_FORMAT_RGB;
 
     *buf = malloc(PNG_IMAGE_SIZE(*image));
-    png_image_finish_read(image, NULL, *buf, 0, NULL);
+    if (!buf) {
+        // TODO
+    }
+
+    if (!png_image_finish_read(image, NULL, *buf, 0, NULL)) {
+        // TODO
+    }
 }
 
 // Write a PNG format image to stdout from buf
@@ -301,6 +317,7 @@ void *read_file(char *path, size_t *size) {
 }
 
 // Read a BMP format image from path
+// TODO check error handling
 int read_bmp_file(bmp_image *image, bmp_bitmap_callback_vt *callbacks, void *file, size_t size) {
     bmp_create(image, callbacks);
 
@@ -415,7 +432,7 @@ int main(void) {
         draw_box(b, getpixel(b->x, b->y), edgecol);
     }
 
-    // TODO libpng output to file (optionally), with error checking
+    // TODO add libpng output to file or stdio, with error checking
     fwrite(outbuf, sizeof(pixel), img_width * img_height, stdout);
 
     if (img_format == PNG) {
