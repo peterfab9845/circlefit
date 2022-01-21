@@ -35,7 +35,12 @@ pngfile: $(NAME)
 	maim -u test.png
 	./$(NAME) | convert -size 3840x1130 -depth 8 RGB:- out.png
 
+.PHONY: bmpstdio
+bmpstdio: $(NAME)
+	maim -u -f bmp | ./$(NAME) | convert -size 3840x1130 -depth 8 RGB:- out.png
+
 .PHONY: bmpfile
 bmpfile: $(NAME)
 	maim -u test.bmp
 	./$(NAME) | convert -size 3840x1130 -depth 8 RGB:- out.png
+

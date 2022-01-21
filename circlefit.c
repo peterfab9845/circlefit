@@ -174,6 +174,7 @@ void draw_circle(bool fill, circle cir, color col) {
     }
 }
 
+// Draw a box with fill and edge colors
 void draw_box(box *b, color fill, color edge) {
     draw_circle(true, b->cir, fill);
     draw_circle(false, b->cir, edge);
@@ -220,8 +221,8 @@ void read_png_stdio(png_image *image, pixel **buf) {
 
     image->format = PNG_FORMAT_RGB;
 
-    *buf = malloc(PNG_IMAGE_SIZE(*image));
-    if (!buf) {
+    *buf = calloc(1, PNG_IMAGE_SIZE(*image));
+    if (!*buf) {
         // TODO
     }
 
@@ -241,8 +242,8 @@ void read_png_file(png_image *image, pixel **buf, char *path) {
 
     image->format = PNG_FORMAT_RGB;
 
-    *buf = malloc(PNG_IMAGE_SIZE(*image));
-    if (!buf) {
+    *buf = calloc(1, PNG_IMAGE_SIZE(*image));
+    if (!*buf) {
         // TODO
     }
 
@@ -261,32 +262,9 @@ void write_png_file(pixel **buf, int width, int height, char *path) {
     // TODO
 }
 
-// BMP reading callback functions
-// Based on libnsbmp decode_bmp example
-void *bmp_cb_create(int width, int height, unsigned int flags) {
-    // BMP_NEW and BMP_OPAQUE flags unused
-    if (flags & BMP_CLEAR_MEMORY) {
-        return calloc(width * height, BMP_BYTES_PER_PIXEL);
-    } else {
-        return malloc(width * height * BMP_BYTES_PER_PIXEL);
-    }
-}
-
-void bmp_cb_destroy(void *bitmap) {
-    free(bitmap);
-}
-
-unsigned char *bmp_cb_get_buffer(void *bitmap) {
-    return bitmap;
-}
-
-size_t bmp_cb_get_bpp(void *bitmap) {
-    (void) bitmap; // unused
-    return BMP_BYTES_PER_PIXEL;
-}
-
-// Read a file into newly allocated memory, setting size to its size
-void *read_file(char *path, size_t *size) {
+// Read a file into newly allocated memory
+// Sets size to the file size
+char *read_file(char *path, size_t *size) {
     FILE *fd = fopen(path, "rb");
     if (!fd) {
         fprintf(stderr, "Failed to open file %s\n", path);
@@ -316,12 +294,85 @@ void *read_file(char *path, size_t *size) {
     return buffer;
 }
 
-// Read a BMP format image from path
+// Read a BMP file from stdin into newly allocated memory
+// Sets size to the file size
+char *read_bmp_stdio(size_t *size) {
+    // Read the first 2 bytes and check the signature
+    uint16_t signature;
+    if (fread(&signature, sizeof(uint16_t), 1, stdin) != 1) {
+        fprintf(stderr, "Failed to read BMP signature from stdin\n");
+        exit(EXIT_FAILURE);
+    }
+    if ((signature        & 0xFF) != 'B' || ((signature >> 8) & 0xFF) != 'M') {
+        fprintf(stderr, "BMP signature does not match\n");
+        exit(EXIT_FAILURE);
+    }
+
+    // Read the next 4 bytes for the file size
+    uint32_t filesize;
+    if (fread(&filesize, sizeof(uint32_t), 1, stdin) != 1) {
+        fprintf(stderr, "Failed to read BMP filesize from stdin\n");
+        exit(EXIT_FAILURE);
+    }
+    *size = filesize;
+
+    // allocate memory for the rest of the file
+    char *buffer = malloc(*size);
+    if (!buffer) {
+        fprintf(stderr, "Failed to allocate %zu bytes\n", *size);
+        exit(EXIT_FAILURE);
+    }
+
+    // fill in what we already read
+    buffer[0] = 'B';
+    buffer[1] = 'M';
+    buffer[2] = (filesize >> 24) & 0xFF;
+    buffer[3] = (filesize >> 16) & 0xFF;
+    buffer[4] = (filesize >> 8) & 0xFF;
+    buffer[5] = filesize & 0xFF;
+
+    // read the rest of the file
+    size_t nread = fread(buffer + 6, 1, filesize - 6, stdin);
+    if (nread != filesize - 6) {
+        fprintf(stderr, "Unable to read %u remaining bytes, got %zu\n",
+                filesize - 6, nread);
+        exit(EXIT_FAILURE);
+    }
+
+    return buffer;
+}
+
+// BMP reading callback functions
+// Based on libnsbmp decode_bmp example
+void *bmp_cb_create(int width, int height, unsigned int flags) {
+    // BMP_NEW and BMP_OPAQUE flags unused
+    if (flags & BMP_CLEAR_MEMORY) {
+        return calloc(width * height, BMP_BYTES_PER_PIXEL);
+    } else {
+        return malloc(width * height * BMP_BYTES_PER_PIXEL);
+    }
+}
+
+void bmp_cb_destroy(void *bitmap) {
+    free(bitmap);
+}
+
+unsigned char *bmp_cb_get_buffer(void *bitmap) {
+    return bitmap;
+}
+
+size_t bmp_cb_get_bpp(void *bitmap) {
+    (void) bitmap; // unused
+    return BMP_BYTES_PER_PIXEL;
+}
+
+// Decode a BMP format image stored in filebuf
 // TODO check error handling
-int read_bmp_file(bmp_image *image, bmp_bitmap_callback_vt *callbacks, void *file, size_t size) {
+int decode_bmp(bmp_image *image, bmp_bitmap_callback_vt *callbacks,
+        void *filebuf, size_t size) {
     bmp_create(image, callbacks);
 
-    bmp_result result = bmp_analyse(image, size, file);
+    bmp_result result = bmp_analyse(image, size, filebuf);
     if (result != BMP_OK) {
         return -1;
     }
@@ -344,33 +395,48 @@ int main(void) {
     int minradius = 5;    // minimum radius of a circle
     color edgecol = {0x30, 0x30, 0x30}; // border color of boxes
     img_format = BMP;
+    bool use_stdin = true;
 
     // TODO error checking
     size_t bmp_size;
-    void *bmp_file;
+    char *bmp_file;
     if (img_format == PNG) {
-        read_png_stdio(&orig_png, &orig_png_buf);
-        //read_png_file(&orig_png, &orig_png_buf, "test.png");
+        if (use_stdin)
+            read_png_stdio(&orig_png, &orig_png_buf);
+        else
+            read_png_file(&orig_png, &orig_png_buf, "test.png");
         img_width = orig_png.width;
         img_height = orig_png.height;
     } else if (img_format == BMP) {
-        bmp_file = read_file("test.bmp", &bmp_size);
-        read_bmp_file(&orig_bmp, &bmp_callbacks, bmp_file, bmp_size);
+        if (use_stdin)
+            bmp_file = read_bmp_stdio(&bmp_size);
+        else
+            bmp_file = read_file("test.bmp", &bmp_size);
+        decode_bmp(&orig_bmp, &bmp_callbacks, bmp_file, bmp_size);
         img_width = orig_bmp.width;
         img_height = orig_bmp.height;
     }
 
     outbuf = calloc(img_width * img_height, sizeof(pixel));
+    if (!outbuf) {
+        fprintf(stderr, "Failed to allocate %zu bytes\n",
+                img_width * img_height * sizeof(pixel));
+        exit(EXIT_FAILURE);
+    }
 
     srand(time(NULL));
 
     // Circle generation algorithm
     // Based on XScreenSaver boxfit by jwz
-    boxes_size = 2 * maxalive;
+    boxes_size = 2 * maxalive; // size of boxes storage
     boxes = calloc(boxes_size, sizeof(*boxes));
-    nboxes = 0;
+    if (!boxes) {
+        fprintf(stderr, "Failed to allocate memory for %d boxes\n", boxes_size);
+        exit(EXIT_FAILURE);
+    }
 
-    int nalive = 0;
+    nboxes = 0; // total number of existing boxes
+    int nalive = 0; // number of living boxes
     bool finished = false;
 
     while (!finished) {
@@ -405,6 +471,7 @@ int main(void) {
 
             // try to add a new box 100 times
             box *b = &boxes[nboxes];
+            b->alive = false;
             for (int i = 0; i < 100; i++) {
                 b->x = padding + (rand() % (img_width - 2*padding));
                 b->y = padding + (rand() % (img_height - 2*padding));
@@ -443,6 +510,7 @@ int main(void) {
         free(bmp_file);
     }
 
+    free(boxes);
     free(outbuf);
 
     return 0;
