@@ -18,7 +18,7 @@ Command-line arguments are not yet implemented. Until then, various options can 
 
 An example using [`maim`](https://github.com/naelstrof/maim) and [`i3lock`](https://github.com/i3/i3lock):
 ```
-maim | circlefit | i3lock --raw 1920x1080:rgb --image /dev/stdin
+maim -f bmp | circlefit | i3lock --raw 1920x1080:rgb --image /dev/stdin
 ```
 
 ## Requirements
