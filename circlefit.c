@@ -43,7 +43,6 @@ typedef struct {
 typedef enum { PNG, BMP } image_format_t;
 image_format_t img_format;
 
-int boxes_size;
 int nboxes;
 box *boxes;
 
@@ -428,13 +427,16 @@ int main(void) {
 
     // Circle generation algorithm
     // Based on XScreenSaver boxfit by jwz
-    boxes_size = 2 * maxalive; // size of boxes storage
+
+    //  allocate initial boxes storage
+    int boxes_size = 2 * maxalive;
     boxes = calloc(boxes_size, sizeof(*boxes));
     if (!boxes) {
         fprintf(stderr, "Failed to allocate memory for %d boxes\n", boxes_size);
         exit(EXIT_FAILURE);
     }
 
+    // start circle placement
     nboxes = 0; // total number of existing boxes
     int nalive = 0; // number of living boxes
     bool finished = false;
