@@ -179,36 +179,6 @@ void draw_box(box *b, color fill, color edge) {
     draw_circle(false, b->cir, edge);
 }
 
-// Will these two circles collide if both grow by pad?
-// Based on XScreenSaver boxfit by jwz
-bool circles_collide(circle *a, circle *b, int pad) {
-    // squared distance between circle centers
-    int centers = SQUARE(b->x - a->x) + SQUARE(b->y - a->y);
-    // squared sum of radii
-    int radii = SQUARE(a->r + b->r + pad);
-    return (centers < radii);
-}
-
-// Will this box be legal if it grows by pad?
-// Based on XScreenSaver boxfit by jwz
-bool box_legal(box *a, int pad) {
-    if (a->x - a->r - pad < 0 ||
-        a->y - a->r - pad < 0 ||
-        a->x + a->r + pad >= img_width ||
-        a->y + a->r + pad >= img_height
-    ) {
-        return false;
-    }
-
-    for (int i = 0; i < nboxes; i++) {
-        box *b = &boxes[i];
-        if ((a != b) && circles_collide(&a->cir, &b->cir, pad)) {
-            return false;
-        }
-    }
-    return true;
-}
-
 // Read a PNG format image from stdin into buf
 void read_png_stdio(png_image *image, pixel **buf) {
     image->version = PNG_IMAGE_VERSION;
@@ -384,6 +354,48 @@ int decode_bmp(bmp_image *image, bmp_bitmap_callback_vt *callbacks,
     return 0;
 }
 
+// Will these two circles collide if one grows by incr?
+// Based on XScreenSaver boxfit by jwz
+bool circles_collide(circle *a, circle *b, int incr) {
+    // squared distance between circle centers
+    int centers = SQUARE(b->x - a->x) + SQUARE(b->y - a->y);
+    // squared sum of radii
+    int radii = SQUARE(a->r + b->r + incr);
+    return (centers < radii);
+}
+
+bool boxes_collide(box *a, box *b, int incr) {
+    return circles_collide(&a->cir, &b->cir, incr);
+}
+
+// Will this box be in bounds if it grows by incr?
+bool box_in_bounds(box *a, int incr) {
+    if (a->x - a->r - incr < 0 ||
+        a->y - a->r - incr < 0 ||
+        a->x + a->r + incr >= img_width ||
+        a->y + a->r + incr >= img_height
+    ) {
+        return false;
+    }
+    return true;
+}
+
+// Will this box be in bounds with no collisions if it grows by incr?
+bool box_legal(box *a, int incr) {
+    if (!box_in_bounds(a, incr)) {
+        return false;
+    }
+
+    for (int i = 0; i < nboxes; i++) {
+        box *b = &boxes[i];
+        if ((a != b) && boxes_collide(a, b, incr)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 int main(void) {
 
     // TODO make these command-line options
@@ -416,19 +428,12 @@ int main(void) {
         img_height = orig_bmp.height;
     }
 
-    outbuf = calloc(img_width * img_height, sizeof(pixel));
-    if (!outbuf) {
-        fprintf(stderr, "Failed to allocate %zu bytes\n",
-                img_width * img_height * sizeof(pixel));
-        exit(EXIT_FAILURE);
-    }
-
     srand(time(NULL));
 
     // Circle generation algorithm
     // Based on XScreenSaver boxfit by jwz
 
-    //  allocate initial boxes storage
+    // allocate initial boxes storage
     int boxes_size = 2 * maxalive;
     boxes = calloc(boxes_size, sizeof(*boxes));
     if (!boxes) {
@@ -493,6 +498,13 @@ int main(void) {
                 break;
             }
         }
+    }
+
+    outbuf = calloc(img_width * img_height, sizeof(pixel));
+    if (!outbuf) {
+        fprintf(stderr, "Failed to allocate %zu bytes\n",
+                img_width * img_height * sizeof(pixel));
+        exit(EXIT_FAILURE);
     }
 
     // draw boxes
