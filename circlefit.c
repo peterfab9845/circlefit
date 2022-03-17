@@ -4,6 +4,8 @@
 #include <stdbool.h>
 #include <errno.h>
 #include <time.h>
+#include <getopt.h>
+#include <string.h>
 #include <png.h>
 #include <libnsbmp.h>
 #include <sys/stat.h>
@@ -396,17 +398,149 @@ bool box_legal(box *a, int incr) {
     return true;
 }
 
-int main(void) {
+void usage(void) {
+    fprintf(stderr, "Usage: circlefit [OPTION]...\n\
+Generate circles colored by the given image.\n\n\
+Required arguments apply to both long and short options.\n\
+  -h, --help                  display this help text and exit\n\
+  -a, --max-alive=INT         maximum number of circles alive concurrently;\n\
+                                default 100, must be at least 1\n\
+  -t, --max-total=INT         maximum total number of circles;\n\
+                                default 65535, must be at least 0\n\
+  -r, --min-radius=INT        minimum radius of circle to create;\n\
+                                default 5, must be at least 1\n\
+  -p, --padding=INT           padding between circles and on edges;\n\
+                                default 2, must be at least 0\n\
+  -g, --grow-by=INT           amount to increase each circle's radius per tick;\n\
+                                default 1, must be at least 1\n\
+  -c, --edge-color=RRGGBB     hex color of the edge of circles; default 303030\n\
+  -i, --input-file=STRING     input filename, stdin if not provided\n\
+  -f, --input-format=STRING   input format, guessed from filename if possible;\n\
+                                default 'bmp'. 'bmp' and 'png' supported\n\
+  -o, --output-file=STRING    output filename, stdout if not provided\n\
+  -F, --output-format=STRING  output format, guessed from filename if possible;\n\
+                                default is input format.\n\
+                                'bmp', 'png' and 'raw' (24bpp RGB) supported\n");
+}
 
-    // TODO make these command-line options
-    int maxalive = 100;   // max number of live boxes at a time
-    int maxcount = 65535; // max total number of boxes
-    int padding = 2;      // padding between boxes and on edges
-    int growby = 1;       // amount to increase radius each iteration
-    int minradius = 5;    // minimum radius of a circle
-    color edgecol = {0x30, 0x30, 0x30}; // border color of boxes
+int main(int argc, char *argv[]) {
+
+    int max_alive = 100;   // max number of live boxes at a time
+    int max_total = 65535; // max total number of boxes
+    int min_radius = 5;    // minimum radius of a circle
+    int padding = 2;       // padding between boxes and on edges
+    int grow_by = 1;       // amount to increase radius each iteration
+    color edge_color = {0x30, 0x30, 0x30}; // border color of boxes
+
+    char edge_color_str[8] = {0};
+    char input_filename[256] = {0};
+    char input_format[8] = {0};
+    char output_filename[256] = {0};
+    char output_format[8] = {0};
+
     img_format = BMP;
     bool use_stdin = true;
+
+    // get command-line options
+    int rc;
+    int option_index = 0;
+    char *options = "ha:t:r:p:g:c:i:f:o:F:";
+    struct option long_options[] = {
+        {"help",          no_argument,       0, 'h'},
+        {"max-alive",     required_argument, 0, 'a'},
+        {"max-total",     required_argument, 0, 't'},
+        {"min-radius",    required_argument, 0, 'r'},
+        {"padding",       required_argument, 0, 'p'},
+        {"grow-by",       required_argument, 0, 'g'},
+        {"edge-color",    required_argument, 0, 'c'},
+        {"input-file",    required_argument, 0, 'i'},
+        {"input-format",  required_argument, 0, 'f'},
+        {"output-file",   required_argument, 0, 'o'},
+        {"output-format", required_argument, 0, 'F'},
+        {0,               0,                 0, 0}
+    };
+    opterr = 1; // have getopt show error messages for us
+
+    while ((rc = getopt_long(argc, argv, options, long_options,
+                    &option_index)) != -1) {
+        switch (rc) {
+            case 'h':
+                usage();
+                exit(EXIT_SUCCESS);
+            case 'a':
+                max_alive = strtol(optarg, NULL, 10);
+                break;
+            case 't':
+                max_total = strtol(optarg, NULL, 10);
+                break;
+            case 'r':
+                min_radius = strtol(optarg, NULL, 10);
+                break;
+            case 'p':
+                padding = strtol(optarg, NULL, 10);
+                break;
+            case 'g':
+                grow_by = strtol(optarg, NULL, 10);
+                break;
+            case 'c':
+                strncpy(edge_color_str, optarg, 7);
+                break;
+            case 'i':
+                strncpy(input_filename, optarg, 255);
+                break;
+            case 'f':
+                strncpy(input_format, optarg, 7);
+                break;
+            case 'o':
+                strncpy(output_filename, optarg, 255);
+                break;
+            case 'F':
+                strncpy(output_format, optarg, 7);
+                break;
+            case '?':
+                // error message handled by getopt
+                usage();
+                exit(EXIT_FAILURE);
+            default:
+                fprintf(stderr, "Undefined option 0x%0x\n", rc);
+                usage();
+                exit(EXIT_FAILURE);
+        }
+    }
+
+    if (optind < argc) {
+        fprintf(stderr, "circlefit: Unexpected trailing argument '%s'\n", argv[optind]);
+        usage();
+        exit(EXIT_FAILURE);
+    }
+
+    if (max_alive < 1) {
+        fprintf(stderr, "circlefit: max-alive must be at least 1\n");
+        usage();
+        exit(EXIT_FAILURE);
+    }
+    if (max_total < 0) {
+        fprintf(stderr, "circlefit: max-total must be at least 0\n");
+        usage();
+        exit(EXIT_FAILURE);
+    }
+    if (min_radius < 1) {
+        fprintf(stderr, "circlefit: min-radius must be at least 1\n");
+        usage();
+        exit(EXIT_FAILURE);
+    }
+    if (padding < 0) {
+        fprintf(stderr, "circlefit: padding must be at least 0\n");
+        usage();
+        exit(EXIT_FAILURE);
+    }
+    if (grow_by < 1) {
+        fprintf(stderr, "circlefit: grow-by must be at least 1\n");
+        usage();
+        exit(EXIT_FAILURE);
+    }
+
+    // TODO check and handle other options
 
     // TODO error checking
     size_t bmp_size;
@@ -434,7 +568,7 @@ int main(void) {
     // Based on XScreenSaver boxfit by jwz
 
     // allocate initial boxes storage
-    int boxes_size = 2 * maxalive;
+    int boxes_size = 2 * max_alive;
     boxes = calloc(boxes_size, sizeof(*boxes));
     if (!boxes) {
         fprintf(stderr, "Failed to allocate memory for %d boxes\n", boxes_size);
@@ -453,18 +587,18 @@ int main(void) {
 
             if (!b->alive) {
                 // don't keep growing, it's already dead
-            } else if (!box_legal(b, growby + padding)) {
+            } else if (!box_legal(b, grow_by + padding)) {
                 // can't grow anymore, make it dead
                 b->alive = false;
                 nalive--;
             } else {
                 // grow the box
-                b->r += growby;
+                b->r += grow_by;
             }
         }
 
         // add new boxes if needed
-        while (nalive < maxalive) {
+        while (nalive < max_alive) {
             if (boxes_size <= nboxes) {
                 // need to reallocate
                 boxes_size = (1.5 * boxes_size) + nboxes;
@@ -482,7 +616,7 @@ int main(void) {
             for (int i = 0; i < 100; i++) {
                 b->x = padding + (rand() % (img_width - 2*padding));
                 b->y = padding + (rand() % (img_height - 2*padding));
-                b->r = minradius;
+                b->r = min_radius;
 
                 if (box_legal(b, padding)) {
                     // successfully found a spot
@@ -492,7 +626,7 @@ int main(void) {
                     break;
                 }
             }
-            if (!b->alive || nboxes >= maxcount) {
+            if (!b->alive || nboxes >= max_total) {
                 // unable to find a new box to add, or reached max
                 finished = true;
                 break;
@@ -510,7 +644,7 @@ int main(void) {
     // draw boxes
     for (int i = 0; i < nboxes; i++) {
         box *b = &boxes[i];
-        draw_box(b, getpixel(b->x, b->y), edgecol);
+        draw_box(b, getpixel(b->x, b->y), edge_color);
     }
 
     // TODO add libpng output to file or stdio, with error checking
