@@ -187,18 +187,21 @@ void read_png_stdio(png_image *image, pixel **buf) {
     image->opaque = NULL;
 
     if (!png_image_begin_read_from_stdio(image, stdin)) {
-        // TODO
+        fprintf(stderr, "Failed to read PNG from stdin\n");
+        exit(EXIT_FAILURE);
     }
 
     image->format = PNG_FORMAT_RGB;
 
     *buf = calloc(1, PNG_IMAGE_SIZE(*image));
     if (!*buf) {
-        // TODO
+        fprintf(stderr, "Failed to allocate %u bytes\n", PNG_IMAGE_SIZE(*image));
+        exit(EXIT_FAILURE);
     }
 
     if (!png_image_finish_read(image, NULL, *buf, 0, NULL)) {
-        // TODO
+        fprintf(stderr, "Failed to read PNG from stdin\n");
+        exit(EXIT_FAILURE);
     }
 }
 
@@ -208,18 +211,21 @@ void read_png_file(png_image *image, pixel **buf, char *path) {
     image->opaque = NULL;
 
     if (!png_image_begin_read_from_file(image, path)) {
-        // TODO
+        fprintf(stderr, "Failed to read PNG from '%s'\n", path);
+        exit(EXIT_FAILURE);
     }
 
     image->format = PNG_FORMAT_RGB;
 
     *buf = calloc(1, PNG_IMAGE_SIZE(*image));
     if (!*buf) {
-        // TODO
+        fprintf(stderr, "Failed to allocate %u bytes\n", PNG_IMAGE_SIZE(*image));
+        exit(EXIT_FAILURE);
     }
 
     if (!png_image_finish_read(image, NULL, *buf, 0, NULL)) {
-        // TODO
+        fprintf(stderr, "Failed to read PNG from '%s'\n", path);
+        exit(EXIT_FAILURE);
     }
 }
 
@@ -274,8 +280,8 @@ char *read_bmp_stdio(size_t *size) {
         fprintf(stderr, "Failed to read BMP signature from stdin\n");
         exit(EXIT_FAILURE);
     }
-    if ((signature        & 0xFF) != 'B' || ((signature >> 8) & 0xFF) != 'M') {
-        fprintf(stderr, "BMP signature does not match\n");
+    if ((signature & 0xFF) != 'B' || ((signature >> 8) & 0xFF) != 'M') {
+        fprintf(stderr, "Incorrect BMP signature on stdin\n");
         exit(EXIT_FAILURE);
     }
 
@@ -338,22 +344,24 @@ size_t bmp_cb_get_bpp(void *bitmap) {
 }
 
 // Decode a BMP format image stored in filebuf
-// TODO check error handling
 int decode_bmp(bmp_image *image, bmp_bitmap_callback_vt *callbacks,
         void *filebuf, size_t size) {
-    bmp_create(image, callbacks);
-
-    bmp_result result = bmp_analyse(image, size, filebuf);
+    bmp_result result = bmp_create(image, callbacks);
     if (result != BMP_OK) {
-        return -1;
+        return result;
+    }
+
+    result = bmp_analyse(image, size, filebuf);
+    if (result != BMP_OK) {
+        return result;
     }
 
     result = bmp_decode(image);
     if (result != BMP_OK) {
-        return -1;
+        return result;
     }
 
-    return 0;
+    return BMP_OK;
 }
 
 // Will these two circles collide if one grows by incr?
@@ -542,22 +550,26 @@ int main(int argc, char *argv[]) {
 
     // TODO check and handle other options
 
-    // TODO error checking
     size_t bmp_size;
     char *bmp_file;
     if (img_format == PNG) {
-        if (use_stdin)
+        if (use_stdin) {
             read_png_stdio(&orig_png, &orig_png_buf);
-        else
+        } else {
             read_png_file(&orig_png, &orig_png_buf, "test.png");
+        }
         img_width = orig_png.width;
         img_height = orig_png.height;
     } else if (img_format == BMP) {
-        if (use_stdin)
+        if (use_stdin) {
             bmp_file = read_bmp_stdio(&bmp_size);
-        else
+        } else {
             bmp_file = read_file("test.bmp", &bmp_size);
-        decode_bmp(&orig_bmp, &bmp_callbacks, bmp_file, bmp_size);
+        }
+        if (decode_bmp(&orig_bmp, &bmp_callbacks, bmp_file, bmp_size) != BMP_OK) {
+            fprintf(stderr, "Failed to decode BMP image\n");
+            exit(EXIT_FAILURE);
+        }
         img_width = orig_bmp.width;
         img_height = orig_bmp.height;
     }
