@@ -421,7 +421,7 @@ Required arguments apply to both long and short options.\n\
                                 default 2, must be at least 0\n\
   -g, --grow-by=INT           amount to increase each circle's radius per tick;\n\
                                 default 1, must be at least 1\n\
-  -c, --edge-color=RRGGBB     hex color of the edge of circles; default 303030\n\
+  -e, --edge-color=RRGGBB     hex color of the edge of circles; default 303030\n\
   -i, --input-file=STRING     input filename, stdin if not provided\n\
   -f, --input-format=STRING   input format, guessed from filename if possible;\n\
                                 default 'bmp'. 'bmp' and 'png' supported\n\
@@ -453,7 +453,7 @@ int main(int argc, char *argv[]) {
     // get command-line options
     int rc;
     int option_index = 0;
-    char *options = "ha:t:r:p:g:c:i:f:o:F:";
+    char *options = "ha:t:r:p:g:e:i:f:o:F:";
     struct option long_options[] = {
         {"help",          no_argument,       0, 'h'},
         {"max-alive",     required_argument, 0, 'a'},
@@ -461,7 +461,7 @@ int main(int argc, char *argv[]) {
         {"min-radius",    required_argument, 0, 'r'},
         {"padding",       required_argument, 0, 'p'},
         {"grow-by",       required_argument, 0, 'g'},
-        {"edge-color",    required_argument, 0, 'c'},
+        {"edge-color",    required_argument, 0, 'e'},
         {"input-file",    required_argument, 0, 'i'},
         {"input-format",  required_argument, 0, 'f'},
         {"output-file",   required_argument, 0, 'o'},
@@ -491,7 +491,7 @@ int main(int argc, char *argv[]) {
             case 'g':
                 grow_by = strtol(optarg, NULL, 10);
                 break;
-            case 'c':
+            case 'e':
                 strncpy(edge_color_str, optarg, 7);
                 break;
             case 'i':
