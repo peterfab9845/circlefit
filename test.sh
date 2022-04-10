@@ -22,6 +22,10 @@ echo "Test ${testno}: BMP from .bmp file, bmp format specified"
 maim -u input.bmp; ./${NAME} -i input.bmp -f bmp | convert -size ${RESOLUTION} -depth 8 RGB:- out${testno}.png
 testno=$((testno+1))
 
+echo "Test ${testno}: BMP from .asd file, bmp format default"
+maim -u -f bmp input.asd; ./${NAME} -i input.asd | convert -size ${RESOLUTION} -depth 8 RGB:- out${testno}.png
+testno=$((testno+1))
+
 echo "Test ${testno}: BMP from .asd file, bmp format specified"
 maim -u -f bmp input.asd; ./${NAME} -i input.asd -f bmp | convert -size ${RESOLUTION} -depth 8 RGB:- out${testno}.png
 testno=$((testno+1))
