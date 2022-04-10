@@ -248,7 +248,7 @@ void write_png_file(pixel **buf, int width, int height, char *path) {
 char *read_file(char *path, size_t *size) {
     FILE *fd = fopen(path, "rb");
     if (!fd) {
-        fprintf(stderr, "Failed to open file %s\n", path);
+        fprintf(stderr, "Failed to open file %s for reading\n", path);
         exit(EXIT_FAILURE);
     }
 
@@ -276,7 +276,21 @@ char *read_file(char *path, size_t *size) {
 }
 
 // Write a file to disk
-// TODO
+void write_file(void *data, size_t size, char *path) {
+    FILE *fd = fopen(path, "wb");
+    if (!fd) {
+        fprintf(stderr, "Failed to open file %s for writing\n", path);
+        exit(EXIT_FAILURE);
+    }
+
+    size_t nwritten = fwrite(data, 1, size, fd);
+    if (nwritten != size) {
+        fprintf(stderr, "Unable to write %zu bytes, wrote %zu\n", size, nwritten);
+        exit(EXIT_FAILURE);
+    }
+
+    fclose(fd);
+}
 
 // Read a BMP file from stdin into newly allocated memory
 // Sets size to the file size
@@ -744,7 +758,7 @@ int main(int argc, char *argv[]) {
     // write output image
     if (output_format == RAW) {
         if (use_output_filename) {
-            fprintf(stderr, "raw file writing NYI\n"); // TODO
+            write_file(outbuf, sizeof(pixel) * img_width * img_height, output_filename);
         } else {
             fwrite(outbuf, sizeof(pixel), img_width * img_height, stdout);
         }
