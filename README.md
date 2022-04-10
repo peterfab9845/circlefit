@@ -3,10 +3,10 @@ A version of `boxfit` from jwz's XScreenSaver that produces a static image inste
 Intended to generate partially-obscured screenshots for use as lockscreen images.
 
 ## Features
-* Various tunable circle algorithm parameters (command-line options planned)
+* Various tunable circle algorithm parameters
   * Parameters result in different amounts of obscurity
 * PNG or BMP input from file or stdin
-* Raw 24-bit RGB output to stdout (PNG to file and stdout planned)
+* Raw 24-bit RGB output to file or stdout (PNG support planned)
 
 ## Sample
 The following image shows a screenshot obscured with `circlefit`.
@@ -14,7 +14,10 @@ The following image shows a screenshot obscured with `circlefit`.
 ![Sample screenshot](https://i.imgur.com/OKxVMJZ.png)
 
 ## Usage
-Command-line arguments are not yet implemented. Until then, various options can be configured by editing the top of `main()`.
+PNG output is not yet implemented. Currently, only raw 24bpp RGB output is available (to file or to stdout).
+
+Please note that there can be noticeable speed differences based on the image formats used.
+BMP input and raw output will likely be the fastest modes.
 
 An example using [`maim`](https://github.com/naelstrof/maim) and [`i3lock`](https://github.com/i3/i3lock):
 ```
