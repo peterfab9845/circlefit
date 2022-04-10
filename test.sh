@@ -1,5 +1,6 @@
 #!/bin/sh
 
+NAME="${NAME:-circlefit}"
 testno=1
 
 # INPUT FORMATS
