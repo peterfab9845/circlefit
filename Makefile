@@ -3,7 +3,7 @@ CFLAGS=-Wall -Wextra -pedantic -lpng -lnsbmp -fms-extensions -Wno-microsoft-anon
 OPTFLAGS=-O3
 DEBUGFLAGS=-g -fsanitize=address
 NAME=circlefit
-IMAGES=*.bmp *.png *.asd
+IMAGES=*.bmp *.png *.asd *.raw
 TESTS=test.sh
 
 CFLAGS += $(OPTFLAGS)
