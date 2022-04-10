@@ -438,9 +438,10 @@ int main(int argc, char *argv[]) {
     int min_radius = 5;    // minimum radius of a circle
     int padding = 2;       // padding between boxes and on edges
     int grow_by = 1;       // amount to increase radius each iteration
-    color edge_color = {0x30, 0x30, 0x30}; // border color of boxes
 
     char edge_color_str[8] = {0};
+    color edge_color = {0x30, 0x30, 0x30}; // border color of boxes
+
     char input_filename[256] = {0};
     char input_format[8] = {0};
     char output_filename[256] = {0};
@@ -548,7 +549,32 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    // TODO check and handle other options
+    if (strlen(edge_color_str) > 0) {
+        char hex[3] = {0};
+
+        hex[0] = edge_color_str[0];
+        hex[1] = edge_color_str[1];
+        edge_color.r = (uint8_t) strtoul(hex, NULL, 16);
+
+        hex[0] = edge_color_str[2];
+        hex[1] = edge_color_str[3];
+        edge_color.g = (uint8_t) strtoul(hex, NULL, 16);
+
+        hex[0] = edge_color_str[4];
+        hex[1] = edge_color_str[5];
+        edge_color.b = (uint8_t) strtoul(hex, NULL, 16);
+
+        if (
+                (edge_color.r == 0x00 && !(edge_color_str[0] == '0' && edge_color_str[1] == '0')) ||
+                (edge_color.g == 0x00 && !(edge_color_str[2] == '0' && edge_color_str[3] == '0')) ||
+                (edge_color.b == 0x00 && !(edge_color_str[4] == '0' && edge_color_str[5] == '0'))
+           ) {
+            fprintf(stderr, "circlefit: edge-color must be in RRGGBB hex format\n");
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    // TODO files and formats
 
     size_t bmp_size;
     char *bmp_file;
