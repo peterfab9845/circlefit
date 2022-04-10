@@ -549,27 +549,22 @@ int main(int argc, char *argv[]) {
     // check numeric option bounds
     if (max_alive < 1) {
         fprintf(stderr, "circlefit: max-alive must be at least 1\n");
-        usage();
         exit(EXIT_FAILURE);
     }
     if (max_total < 0) {
         fprintf(stderr, "circlefit: max-total must be at least 0\n");
-        usage();
         exit(EXIT_FAILURE);
     }
     if (min_radius < 1) {
         fprintf(stderr, "circlefit: min-radius must be at least 1\n");
-        usage();
         exit(EXIT_FAILURE);
     }
     if (padding < 0) {
         fprintf(stderr, "circlefit: padding must be at least 0\n");
-        usage();
         exit(EXIT_FAILURE);
     }
     if (grow_by < 1) {
         fprintf(stderr, "circlefit: grow-by must be at least 1\n");
-        usage();
         exit(EXIT_FAILURE);
     }
 
