@@ -42,8 +42,8 @@ typedef struct {
     bool alive;
 } box;
 
-typedef enum { PNG, BMP } image_format_t;
-image_format_t img_format;
+typedef enum { UNKNOWN, BMP, PNG, RAW } image_format_t;
+image_format_t input_format;
 
 int nboxes;
 box *boxes;
@@ -70,14 +70,14 @@ bmp_bitmap_callback_vt bmp_callbacks = {
 pixel *outbuf;
 
 color getpixel(int x, int y) {
-    if (img_format == PNG) {
+    if (input_format == PNG) {
         // bytes per memory row = components per row * bytes per component
         int stride = PNG_IMAGE_ROW_STRIDE(orig_png) *
             PNG_IMAGE_PIXEL_COMPONENT_SIZE(orig_png.format);
         // pixels per memory row = bytes per row / bytes per pixel
         int pitch = stride/PNG_IMAGE_PIXEL_SIZE(orig_png.format);
         return orig_png_buf[y*pitch + x];
-    } else if (img_format == BMP) {
+    } else if (input_format == BMP) {
         // pixels per memory row = image width
         int pitch = orig_bmp.width;
         return ((pixel4 *)(orig_bmp.bitmap))[y*pitch + x].pix3;
@@ -231,12 +231,16 @@ void read_png_file(png_image *image, pixel **buf, char *path) {
 
 // Write a PNG format image to stdout from buf
 void write_png_stdio(pixel **buf, int width, int height) {
+    fprintf(stderr, "PNG to stdio NYI\n");
     // TODO
+    // error checking in here
 }
 
 // Write a PNG format image to path from buf
 void write_png_file(pixel **buf, int width, int height, char *path) {
+    fprintf(stderr, "PNG to file NYI\n");
     // TODO
+    // error checking in here
 }
 
 // Read a file into newly allocated memory
@@ -270,6 +274,9 @@ char *read_file(char *path, size_t *size) {
     fclose(fd);
     return buffer;
 }
+
+// Write a file to disk
+// TODO
 
 // Read a BMP file from stdin into newly allocated memory
 // Sets size to the file size
@@ -342,6 +349,7 @@ size_t bmp_cb_get_bpp(void *bitmap) {
     (void) bitmap; // unused
     return BMP_BYTES_PER_PIXEL;
 }
+// End BMP reading callback functions
 
 // Decode a BMP format image stored in filebuf
 int decode_bmp(bmp_image *image, bmp_bitmap_callback_vt *callbacks,
@@ -406,6 +414,17 @@ bool box_legal(box *a, int incr) {
     return true;
 }
 
+image_format_t parse_format(char *str) {
+    if (strncmp(str, "png", 3) == 0 || strncmp(str, "PNG", 3) == 0) {
+        return PNG;
+    } else if (strncmp(str, "bmp", 3) == 0 || strncmp(str, "BMP", 3) == 0) {
+        return BMP;
+    } else if (strncmp(str, "raw", 3) == 0 || strncmp(str, "RAW", 3) == 0) {
+        return RAW;
+    }
+    return UNKNOWN;
+}
+
 void usage(void) {
     fprintf(stderr, "Usage: circlefit [OPTION]...\n\
 Generate circles colored by the given image.\n\n\
@@ -424,11 +443,11 @@ Required arguments apply to both long and short options.\n\
   -e, --edge-color=RRGGBB     hex color of the edge of circles; default 303030\n\
   -i, --input-file=STRING     input filename, stdin if not provided\n\
   -f, --input-format=STRING   input format, guessed from filename if possible;\n\
-                                default 'bmp'. 'bmp' and 'png' supported\n\
+                                'bmp' and 'png' supported, default 'bmp'\n\
   -o, --output-file=STRING    output filename, stdout if not provided\n\
   -F, --output-format=STRING  output format, guessed from filename if possible;\n\
-                                default is input format.\n\
-                                'bmp', 'png' and 'raw' (24bpp RGB) supported\n");
+                                'raw' and 'png' supported, default 'raw'.\n\
+                                'raw' format is 24bpp RGB\n");
 }
 
 int main(int argc, char *argv[]) {
@@ -443,12 +462,14 @@ int main(int argc, char *argv[]) {
     color edge_color = {0x30, 0x30, 0x30}; // border color of boxes
 
     char input_filename[256] = {0};
-    char input_format[8] = {0};
     char output_filename[256] = {0};
-    char output_format[8] = {0};
+    bool use_input_filename = false;
+    bool use_output_filename = false;
 
-    img_format = BMP;
-    bool use_stdin = true;
+    char input_format_str[8] = {0};
+    char output_format_str[8] = {0};
+    input_format = BMP;
+    image_format_t output_format = RAW;
 
     // get command-line options
     int rc;
@@ -496,15 +517,17 @@ int main(int argc, char *argv[]) {
                 break;
             case 'i':
                 strncpy(input_filename, optarg, 255);
+                use_input_filename = true;
                 break;
             case 'f':
-                strncpy(input_format, optarg, 7);
+                strncpy(input_format_str, optarg, 7);
                 break;
             case 'o':
                 strncpy(output_filename, optarg, 255);
+                use_output_filename = true;
                 break;
             case 'F':
-                strncpy(output_format, optarg, 7);
+                strncpy(output_format_str, optarg, 7);
                 break;
             case '?':
                 // error message handled by getopt
@@ -523,6 +546,7 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
+    // check numeric option bounds
     if (max_alive < 1) {
         fprintf(stderr, "circlefit: max-alive must be at least 1\n");
         usage();
@@ -549,6 +573,7 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
+    // interpret edge color hex string
     if (strlen(edge_color_str) > 0) {
         char hex[3] = {0};
 
@@ -574,23 +599,56 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    // TODO files and formats
+    // determine input format
+    if (strlen(input_format_str) > 0) {
+        input_format = parse_format(input_format_str);
+        if (!(input_format == BMP || input_format == PNG)) {
+            fprintf(stderr, "circlefit: input-format must be 'bmp' or 'png'\n");
+            exit(EXIT_FAILURE);
+        }
+    } else if (use_input_filename) {
+        size_t input_len = strlen(input_filename);
+        if (input_len >= 3) {
+            image_format_t guessed_format = parse_format(input_filename + input_len - 3);
+            if (guessed_format == PNG || guessed_format == BMP) {
+                input_format = guessed_format;
+            }
+        }
+    }
 
+    // determine output format
+    if (strlen(output_format_str) > 0) {
+        output_format = parse_format(output_format_str);
+        if (!(output_format == RAW || output_format == PNG)) {
+            fprintf(stderr, "circlefit: output-format must be 'raw' or 'png'\n");
+            exit(EXIT_FAILURE);
+        }
+    } else if (use_output_filename) {
+        size_t output_len = strlen(output_filename);
+        if (output_len >= 3) {
+            image_format_t guessed_format = parse_format(output_filename + output_len - 3);
+            if (guessed_format == RAW || guessed_format == PNG) {
+                output_format = guessed_format;
+            }
+        }
+    }
+
+    // read input image
     size_t bmp_size;
     char *bmp_file;
-    if (img_format == PNG) {
-        if (use_stdin) {
-            read_png_stdio(&orig_png, &orig_png_buf);
+    if (input_format == PNG) {
+        if (use_input_filename) {
+            read_png_file(&orig_png, &orig_png_buf, input_filename);
         } else {
-            read_png_file(&orig_png, &orig_png_buf, "test.png");
+            read_png_stdio(&orig_png, &orig_png_buf);
         }
         img_width = orig_png.width;
         img_height = orig_png.height;
-    } else if (img_format == BMP) {
-        if (use_stdin) {
-            bmp_file = read_bmp_stdio(&bmp_size);
+    } else if (input_format == BMP) {
+        if (use_input_filename) {
+            bmp_file = read_file(input_filename, &bmp_size);
         } else {
-            bmp_file = read_file("test.bmp", &bmp_size);
+            bmp_file = read_bmp_stdio(&bmp_size);
         }
         if (decode_bmp(&orig_bmp, &bmp_callbacks, bmp_file, bmp_size) != BMP_OK) {
             fprintf(stderr, "Failed to decode BMP image\n");
@@ -598,6 +656,9 @@ int main(int argc, char *argv[]) {
         }
         img_width = orig_bmp.width;
         img_height = orig_bmp.height;
+    } else {
+        fprintf(stderr, "Unsupported input format\n");
+        exit(EXIT_FAILURE);
     }
 
     srand(time(NULL));
@@ -685,13 +746,29 @@ int main(int argc, char *argv[]) {
         draw_box(b, getpixel(b->x, b->y), edge_color);
     }
 
-    // TODO add libpng output to file or stdio, with error checking
-    fwrite(outbuf, sizeof(pixel), img_width * img_height, stdout);
+    // write output image
+    if (output_format == RAW) {
+        if (use_output_filename) {
+            fprintf(stderr, "raw file writing NYI\n"); // TODO
+        } else {
+            fwrite(outbuf, sizeof(pixel), img_width * img_height, stdout);
+        }
+    } else if (output_format == PNG) {
+        if (use_output_filename) {
+            write_png_file(&outbuf, img_width, img_height, output_filename);
+        } else {
+            write_png_stdio(&outbuf, img_width, img_height);
+        }
+    } else {
+        fprintf(stderr, "Unsupported output format\n");
+        exit(EXIT_FAILURE);
+    }
 
-    if (img_format == PNG) {
+    // clean up
+    if (input_format == PNG) {
         png_image_free(&orig_png);
         free(orig_png_buf);
-    } else if (img_format == BMP) {
+    } else if (input_format == BMP) {
         bmp_finalise(&orig_bmp);
         free(bmp_file);
     }
