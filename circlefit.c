@@ -10,7 +10,7 @@
 #include <libnsbmp.h>
 #include <sys/stat.h>
 
-#define BMP_BYTES_PER_PIXEL (4)
+#define BMP_BYTES_PER_PIXEL (sizeof(uint32_t))
 #define SQUARE(x) ((x) * (x))
 
 typedef struct color_t {
@@ -57,14 +57,12 @@ pixel *orig_png_buf;
 void *bmp_cb_create(int width, int height, unsigned int flags);
 void bmp_cb_destroy(void *bitmap);
 unsigned char *bmp_cb_get_buffer(void *bitmap);
-size_t bmp_cb_get_bpp(void *bitmap);
 
 bmp_image orig_bmp;
 bmp_bitmap_callback_vt bmp_callbacks = {
     bmp_cb_create,
     bmp_cb_destroy,
-    bmp_cb_get_buffer,
-    bmp_cb_get_bpp
+    bmp_cb_get_buffer
 };
 
 pixel *outbuf;
@@ -357,11 +355,6 @@ void bmp_cb_destroy(void *bitmap) {
 
 unsigned char *bmp_cb_get_buffer(void *bitmap) {
     return bitmap;
-}
-
-size_t bmp_cb_get_bpp(void *bitmap) {
-    (void) bitmap; // unused
-    return BMP_BYTES_PER_PIXEL;
 }
 // End BMP reading callback functions
 
